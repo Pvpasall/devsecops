@@ -1,6 +1,6 @@
 # 🛡️ DevSecOps E-Commerce Platform
 
-
+## Souleymane SALL
 
 ## 📋 Description du Projet
 
@@ -94,6 +94,14 @@ docker-compose logs -f
   - Identifiants: `admin` / `admin123`
   - Identifiants: `user` / `user123`
 
+### 📚 Documentation API (Swagger)
+- **API Gateway Documentation**: http://api.localhost/docs
+- **Payment Service Documentation**: http://payment.localhost/docs
+- **Alternative URLs**:
+  - http://localhost/api-docs (redirect vers API Gateway)
+  - http://api.localhost/api-docs
+  - http://payment.localhost/api-docs
+
 ## 🔒 Sécurité
 
 ### Mesures de Sécurité Implémentées
@@ -183,6 +191,18 @@ Tous les services exposent des endpoints de health check :
 - API Gateway: http://api.localhost/api/health
 - Payment Service: http://payment.localhost/api/health
 - Admin Dashboard: http://localhost:8080/health
+
+### API Documentation
+
+Chaque service API expose une documentation Swagger complète :
+- **API Gateway**: http://api.localhost/docs
+  - Endpoints de produits, authentification, commandes
+  - Exemples de requêtes et réponses
+  - Schémas de données détaillés
+- **Payment Service**: http://payment.localhost/docs
+  - Intégration Stripe complète
+  - Gestion des webhooks
+  - Validation des paiements
 
 ### Logs
 
