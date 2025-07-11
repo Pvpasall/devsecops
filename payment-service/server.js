@@ -8,6 +8,7 @@ const { body, validationResult } = require('express-validator');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const mongoose = require('mongoose');
 const winston = require('winston');
+const { specs, swaggerUi } = require('./swagger');
 require('dotenv').config();
 
 const app = express();
@@ -90,6 +91,38 @@ const paymentSchema = new mongoose.Schema({
 
 const Payment = mongoose.model('Payment', paymentSchema);
 
+// Swagger Documentation
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(specs, {
+    customSiteTitle: 'DevSecOps Payment Service Documentation',
+    customCss: '.swagger-ui .topbar { display: none }',
+    swaggerOptions: {
+        persistAuthorization: true,
+        displayRequestDuration: true
+    }
+}));
+
+// API Documentation redirect
+app.get('/api-docs', (req, res) => {
+    res.redirect('/docs');
+});
+
+/**
+ * @swagger
+ * /api/health:
+ *   get:
+ *     summary: Health check endpoint
+ *     tags: [Health]
+ *     description: Returns the health status of the Payment Service including Stripe connectivity
+ *     responses:
+ *       200:
+ *         description: Service is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/HealthCheck'
+ *       500:
+ *         description: Service is unhealthy
+ */
 // Health check endpoint
 app.get('/api/health', (req, res) => {
     res.json({
@@ -102,6 +135,57 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+/**
+ * @swagger
+ * /api/create-payment-intent:
+ *   post:
+ *     summary: Create a Stripe payment intent
+ *     tags: [Payments]
+ *     description: Create a payment intent for processing payments with Stripe
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/PaymentIntent'
+ *           examples:
+ *             formation:
+ *               summary: DevSecOps Formation
+ *               value:
+ *                 product: "formation-devsecops"
+ *                 amount: 9999
+ *                 customerEmail: "student@example.com"
+ *             audit:
+ *               summary: Security Audit
+ *               value:
+ *                 product: "audit-securite"
+ *                 amount: 29999
+ *                 customerEmail: "client@example.com"
+ *             consulting:
+ *               summary: Docker Consulting
+ *               value:
+ *                 product: "consulting-docker"
+ *                 amount: 19999
+ *     responses:
+ *       200:
+ *         description: Payment intent created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PaymentIntentResponse'
+ *       400:
+ *         description: Validation error or invalid product/amount
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationError'
+ *       500:
+ *         description: Payment processing error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
 // Create payment intent endpoint
 app.post('/api/create-payment-intent', [
     body('product').notEmpty().withMessage('Product is required'),
@@ -197,6 +281,36 @@ app.post('/api/create-payment-intent', [
     }
 });
 
+/**
+ * @swagger
+ * /api/webhook:
+ *   post:
+ *     summary: Stripe webhook handler
+ *     tags: [Webhooks]
+ *     description: Handle Stripe webhook events for payment confirmations
+ *     security:
+ *       - stripeWebhook: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             description: Stripe webhook event payload
+ *     responses:
+ *       200:
+ *         description: Webhook processed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 received:
+ *                   type: boolean
+ *                   example: true
+ *       400:
+ *         description: Webhook signature verification failed
+ */
 // Webhook endpoint for Stripe events
 app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
     const sig = req.headers['stripe-signature'];
@@ -256,6 +370,42 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
     res.json({ received: true });
 });
 
+/**
+ * @swagger
+ * /api/payment/{paymentIntentId}:
+ *   get:
+ *     summary: Get payment status
+ *     tags: [Payments]
+ *     description: Retrieve the status of a specific payment by its payment intent ID
+ *     parameters:
+ *       - in: path
+ *         name: paymentIntentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Stripe payment intent ID
+ *         example: "pi_1234567890"
+ *     responses:
+ *       200:
+ *         description: Payment status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Payment'
+ *       404:
+ *         description: Payment not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       500:
+ *         description: Failed to get payment status
+ */
 // Get payment status endpoint
 app.get('/api/payment/:paymentIntentId', async (req, res) => {
     try {
@@ -291,6 +441,34 @@ app.get('/api/payment/:paymentIntentId', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /api/payments:
+ *   get:
+ *     summary: Get all payments (Admin only)
+ *     tags: [Admin]
+ *     description: Retrieve all payments from the database (limited to last 100)
+ *     responses:
+ *       200:
+ *         description: Payments retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Payment'
+ *       500:
+ *         description: Failed to fetch payments
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
 // Get all payments endpoint (for admin)
 app.get('/api/payments', async (req, res) => {
     try {
