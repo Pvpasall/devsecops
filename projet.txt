@@ -1,0 +1,33 @@
+ Consigne
+ Lors du projet, vous devrez créer un document, un par personne, et insérer les commandes ainsi que les
+ réponses aux questions, pour enfin l'envoyer dans l'onglet "Devoir" Teams, présentant vos démarches. Vous
+ présenterez les différentes commandes et l'ordre d'exécution du projet avec vos explications. 5 personnes
+ max par groupe.
+
+ Projet
+ 
+ Partie 1
+ Vous avez intégré une équipe d'ingénieur devsecops dans une grande entreprise française (🐓). Votre scrum
+ master vous demande de déployer 4 applications (au choix), dont une application statique (html) et utiliser la
+ passerelle de paiement Stripe, pour un nouveau client dans un environnement de développement avec
+ docker.
+ Vous avez reçu un email concernant le projet avec les caractéristiques suivantes :
+ - Déployer toute la stack avec une infrastructure as code avec 1 seul fichier
+ - Les applications doivent être le plus légères et accessibles depuis l'extérieur
+ - Les applications devront être accessibles derrière un reverse proxy excepté une application (au choix). Il
+ faudra y accéder directement, afin de réaliser des pentests plus poussés en whitebox par une autre
+ équipe.
+
+ Le client vous autorise à publier le code source des images des applications en open-soure. Afin de partager
+ cela à la communauté, vous devez publier les images dans votre repository docker hub et les tester avec un
+ docker compose, pour s'assurer que tout le monde puisse y accéder.
+ 
+ 💡 Rédiger toute votre démarche, les solutions choisis ainsi qu'une image de l'infrastructure.
+ 
+ Partie 2
+ Présenter et expliquer la répartition des tâches de votre équipe
+ Documenter l'entièreté de votre démarche et réaliser un schéma représentant l'architecture du projet
+ Expliquer le choix concernant les frameworks et technologies utilisés
+ Vous devrez héberger tout votre travail dans un repo git, y compris les images des applications que
+ vous optimiserez au maximum (Dockerfile) ainsi que les héberger dans une solution cloud (docker hub,
+ par exemple).

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevSecOps E-Commerce Platform</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://js.stripe.com/v3/"></script>
+</head>
+
+<body>
+    <header>
+        <nav class="navbar">
+            <div class="nav-container">
+                <h1 class="logo">🛒 DevSecOps Shop</h1>
+                <ul class="nav-menu">
+                    <li><a href="#home">Accueil</a></li>
+                    <li><a href="#products">Produits</a></li>
+                    <li><a href="#about">À propos</a></li>
+                    <li><a href="#contact">Contact</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section id="home" class="hero">
+            <div class="hero-content">
+                <h2>Plateforme E-Commerce Sécurisée</h2>
+                <p>Découvrez notre solution DevSecOps avec intégration Stripe</p>
+                <button class="cta-button" onclick="scrollToProducts()">Voir les produits</button>
+            </div>
+        </section>
+
+        <section id="products" class="products">
+            <div class="container">
+                <h2>Nos Produits</h2>
+                <div class="product-grid">
+                    <div class="product-card">
+                        <img src="https://via.placeholder.com/300x200/4CAF50/white?text=Produit+1" alt="Produit 1">
+                        <h3>Formation DevSecOps</h3>
+                        <p>Formation complète en sécurité DevOps</p>
+                        <div class="price">€99.99</div>
+                        <button class="buy-button" onclick="buyProduct('formation-devsecops', 9999)">Acheter</button>
+                    </div>
+                    <div class="product-card">
+                        <img src="https://via.placeholder.com/300x200/2196F3/white?text=Produit+2" alt="Produit 2">
+                        <h3>Audit de Sécurité</h3>
+                        <p>Audit complet de votre infrastructure</p>
+                        <div class="price">€299.99</div>
+                        <button class="buy-button" onclick="buyProduct('audit-securite', 29999)">Acheter</button>
+                    </div>
+                    <div class="product-card">
+                        <img src="https://via.placeholder.com/300x200/FF9800/white?text=Produit+3" alt="Produit 3">
+                        <h3>Consulting Docker</h3>
+                        <p>Optimisation de vos conteneurs Docker</p>
+                        <div class="price">€199.99</div>
+                        <button class="buy-button" onclick="buyProduct('consulting-docker', 19999)">Acheter</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="about" class="about">
+            <div class="container">
+                <h2>À propos</h2>
+                <p>Cette plateforme démontre l'implémentation d'une architecture DevSecOps complète avec Docker,
+                    incluant :</p>
+                <ul>
+                    <li>🔒 Sécurité intégrée dès la conception</li>
+                    <li>🐳 Conteneurisation avec Docker</li>
+                    <li>💳 Intégration Stripe pour les paiements</li>
+                    <li>🔄 CI/CD avec tests de sécurité</li>
+                    <li>📊 Monitoring et logging</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="contact" class="contact">
+            <div class="container">
+                <h2>Contact</h2>
+                <p>Pour plus d'informations sur nos services DevSecOps</p>
+                <div class="contact-info">
+                    <p>📧 contact@devsecops-shop.fr</p>
+                    <p>🏢 ESTIAM Paris - Projet E5</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2024 DevSecOps Shop - Projet ESTIAM E5</p>
+        </div>
+    </footer>
+
+    <!-- Stripe Payment Modal -->
+    <div id="payment-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Paiement sécurisé</h2>
+            <div id="payment-form">
+                <div id="card-element">
+                    <!-- Stripe Elements will create form elements here -->
+                </div>
+                <button id="submit-payment">Payer maintenant</button>
+            </div>
+            <div id="payment-result"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
