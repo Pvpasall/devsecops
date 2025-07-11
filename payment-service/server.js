@@ -144,17 +144,34 @@ app.post('/api/create-payment-intent', [
         }
 
         // Create payment intent with Stripe
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount: amount,
-            currency: 'eur',
-            metadata: {
-                product: product,
-                service: 'devsecops-ecommerce'
-            },
-            automatic_payment_methods: {
-                enabled: true
-            }
-        });
+        let paymentIntent;
+
+        // Check if we're in demo mode (invalid Stripe key)
+        if (!process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY.includes('your_stripe_secret_key_here')) {
+            // Demo mode - create a mock payment intent
+            paymentIntent = {
+                id: 'pi_demo_' + Date.now(),
+                client_secret: 'pi_demo_' + Date.now() + '_secret_demo',
+                amount: amount,
+                currency: 'eur',
+                status: 'requires_payment_method'
+            };
+
+            logger.info('Running in demo mode - using mock payment intent');
+        } else {
+            // Real Stripe mode
+            paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: 'eur',
+                metadata: {
+                    product: product,
+                    service: 'devsecops-ecommerce'
+                },
+                automatic_payment_methods: {
+                    enabled: true
+                }
+            });
+        }
 
         // Save payment record to database
         const payment = new Payment({
@@ -174,11 +191,21 @@ app.post('/api/create-payment-intent', [
             amount: amount
         });
 
-        res.json({
-            success: true,
-            clientSecret: paymentIntent.client_secret,
-            paymentIntentId: paymentIntent.id
-        });
+        // Check if we're in demo mode
+        if (!process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY.includes('your_stripe_secret_key_here')) {
+            res.json({
+                success: true,
+                message: 'Paiement réussi ! (Mode démo)',
+                paymentIntentId: paymentIntent.id,
+                demoMode: true
+            });
+        } else {
+            res.json({
+                success: true,
+                clientSecret: paymentIntent.client_secret,
+                paymentIntentId: paymentIntent.id
+            });
+        }
 
     } catch (error) {
         logger.error('Payment intent creation error:', error);

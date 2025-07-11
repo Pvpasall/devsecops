@@ -50,6 +50,7 @@ services:
       - PORT=3000
       - FRONTEND_URL=http://localhost
       - DATABASE_URL=mongodb://database:27017/gateway
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
     depends_on:
       - database
     networks:
