@@ -93,6 +93,24 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+
+// Stripe configuration endpoint
+app.get('/api/stripe-config', (req, res) => {
+    // Only return publishable key if we have valid Stripe configuration
+    const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+
+    if (publishableKey && !publishableKey.includes('your_stripe_publishable_key_here')) {
+        res.json({
+            publishableKey: publishableKey
+        });
+    } else {
+        res.json({
+            publishableKey: null,
+            demoMode: true
+        });
+    }
+});
+
 /**
  * @swagger
  * /api/products:
@@ -121,6 +139,7 @@ app.get('/api/health', (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/ApiResponse'
  */
+
 // Products endpoint
 app.get('/api/products', async (req, res) => {
     try {

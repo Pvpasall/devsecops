@@ -1,19 +1,37 @@
-// Initialize Stripe (replace with your publishable key)
-const stripe = Stripe('pk_test_your_stripe_publishable_key_here');
-const elements = stripe.elements();
+// Initialize Stripe with publishable key from backend
+let stripe = null;
+let elements = null;
+let cardElement = null;
 
-// Create card element
-const cardElement = elements.create('card', {
-    style: {
-        base: {
-            fontSize: '16px',
-            color: '#424770',
-            '::placeholder': {
-                color: '#aab7c4',
-            },
-        },
-    },
-});
+// Initialize Stripe after getting publishable key from backend
+async function initializeStripe() {
+    try {
+        const response = await fetch('/api/stripe-config');
+        const config = await response.json();
+
+        if (config.publishableKey) {
+            stripe = Stripe(config.publishableKey);
+            elements = stripe.elements();
+
+            // Create card element
+            cardElement = elements.create('card', {
+                style: {
+                    base: {
+                        fontSize: '16px',
+                        color: '#424770',
+                        '::placeholder': {
+                            color: '#aab7c4',
+                        },
+                    },
+                },
+            });
+        } else {
+            console.log('Running in demo mode - no Stripe integration');
+        }
+    } catch (error) {
+        console.log('Stripe not available - running in demo mode');
+    }
+}
 
 // Variables for current purchase
 let currentProduct = null;
@@ -26,9 +44,21 @@ const submitButton = document.getElementById('submit-payment');
 const paymentResult = document.getElementById('payment-result');
 
 // Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', function () {
-    // Mount card element
-    cardElement.mount('#card-element');
+document.addEventListener('DOMContentLoaded', async function () {
+    // Initialize Stripe first
+    await initializeStripe();
+
+    // Mount card element if Stripe is available
+    if (cardElement) {
+        cardElement.mount('#card-element');
+        setupCardElementEvents();
+    } else {
+        // Hide card element container in demo mode
+        const cardContainer = document.getElementById('card-element');
+        if (cardContainer) {
+            cardContainer.style.display = 'none';
+        }
+    }
 
     // Modal event listeners
     closeBtn.addEventListener('click', closeModal);
@@ -107,29 +137,33 @@ async function handlePayment() {
             throw new Error('Erreur serveur');
         }
 
-        const { clientSecret } = await response.json();
+        const result = await response.json();
 
-        // Confirm payment with Stripe
-        const result = await stripe.confirmCardPayment(clientSecret, {
-            payment_method: {
-                card: cardElement,
-                billing_details: {
-                    name: 'Client DevSecOps',
+        if (result.success) {
+            if (result.clientSecret && stripe && cardElement) {
+                // Real Stripe mode - confirm payment on client side
+                const confirmResult = await stripe.confirmCardPayment(result.clientSecret, {
+                    payment_method: {
+                        card: cardElement,
+                        billing_details: {
+                            name: 'Client DevSecOps',
+                        }
+                    }
+                });
+
+                if (confirmResult.error) {
+                    showPaymentResult(`Erreur de paiement: ${confirmResult.error.message}`, 'error');
+                } else {
+                    showPaymentResult('Paiement réussi ! Merci pour votre achat.', 'success');
+                    setTimeout(() => closeModal(), 3000);
                 }
+            } else {
+                // Demo mode or backend-handled payment
+                showPaymentResult(result.message || 'Paiement réussi ! (Mode démo) Merci pour votre achat.', 'success');
+                setTimeout(() => closeModal(), 3000);
             }
-        });
-
-        if (result.error) {
-            // Payment failed
-            showPaymentResult(`Erreur de paiement: ${result.error.message}`, 'error');
         } else {
-            // Payment succeeded
-            showPaymentResult('Paiement réussi ! Merci pour votre achat.', 'success');
-
-            // Clear form after successful payment
-            setTimeout(() => {
-                closeModal();
-            }, 3000);
+            showPaymentResult(`Erreur: ${result.error}`, 'error');
         }
 
     } catch (error) {
@@ -149,14 +183,18 @@ function showPaymentResult(message, type) {
     paymentResult.style.display = 'block';
 }
 
-// Handle card element events
-cardElement.on('change', function (event) {
-    if (event.error) {
-        showPaymentResult(event.error.message, 'error');
-    } else {
-        paymentResult.style.display = 'none';
+// Handle card element events (only if Stripe is available)
+function setupCardElementEvents() {
+    if (cardElement) {
+        cardElement.on('change', function (event) {
+            if (event.error) {
+                showPaymentResult(event.error.message, 'error');
+            } else {
+                paymentResult.style.display = 'none';
+            }
+        });
     }
-});
+}
 
 // Smooth scrolling for navigation links
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {
