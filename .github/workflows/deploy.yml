@@ -1,0 +1,280 @@
+name: Build and Deploy to Docker Hub
+
+on:
+  pull_request:
+    branches: [ master ]
+    types: [ opened, synchronize, reopened ]
+  push:
+    branches: [ master ]
+
+env:
+  REGISTRY: docker.io
+  IMAGE_PREFIX: ${{ secrets.DOCKERHUB_USERNAME }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        service:
+          - name: frontend
+            context: ./frontend
+            dockerfile: ./frontend/Dockerfile
+          - name: api-gateway
+            context: ./api-gateway
+            dockerfile: ./api-gateway/Dockerfile
+          - name: payment-service
+            context: ./payment-service
+            dockerfile: ./payment-service/Dockerfile
+          - name: admin-dashboard
+            context: ./admin-dashboard
+            dockerfile: ./admin-dashboard/Dockerfile
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Validate environment
+      run: |
+        if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
+          echo "ERROR: DOCKERHUB_USERNAME secret is not set"
+          exit 1
+        fi
+        if [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+          echo "ERROR: DOCKERHUB_TOKEN secret is not set"
+          exit 1
+        fi
+        echo "Docker Hub username: ${{ secrets.DOCKERHUB_USERNAME }}"
+        echo "All required secrets are configured"
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Generate tags
+      id: tags
+      run: |
+        IMAGE_NAME="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/devsecops-${{ matrix.service.name }}"
+        TAGS=""
+        
+        # Add branch name tag
+        if [ "${{ github.event_name }}" = "push" ]; then
+          BRANCH_NAME="${{ github.ref_name }}"
+          TAGS="${TAGS}${IMAGE_NAME}:${BRANCH_NAME},"
+          
+          # Add latest tag for master branch
+          if [ "${BRANCH_NAME}" = "master" ]; then
+            TAGS="${TAGS}${IMAGE_NAME}:latest,"
+          fi
+        fi
+        
+        # Add PR tag
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          PR_NUMBER="${{ github.event.number }}"
+          TAGS="${TAGS}${IMAGE_NAME}:pr-${PR_NUMBER},"
+        fi
+        
+        # Add commit SHA tag
+        SHORT_SHA="${{ github.sha }}"
+        SHORT_SHA="${SHORT_SHA:0:7}"
+        TAGS="${TAGS}${IMAGE_NAME}:commit-${SHORT_SHA},"
+        
+        # Remove trailing comma
+        TAGS="${TAGS%,}"
+        
+        echo "Generated tags: ${TAGS}"
+        echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ matrix.service.context }}
+        file: ${{ matrix.service.dockerfile }}
+        push: true
+        tags: ${{ steps.tags.outputs.tags }}
+        labels: |
+          org.opencontainers.image.title=DevSecOps ${{ matrix.service.name }}
+          org.opencontainers.image.description=DevSecOps E-Commerce Platform - ${{ matrix.service.name }}
+          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          org.opencontainers.image.revision=${{ github.sha }}
+          org.opencontainers.image.created=${{ github.event.repository.updated_at }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+  deploy-compose:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Create production docker-compose
+      run: |
+        # Create a production version of docker-compose with Docker Hub images
+        cat > docker-compose.prod.yml << 'EOF'
+        version: '3.8'
+
+        services:
+          # Reverse Proxy (Nginx)
+          reverse-proxy:
+            image: nginx:alpine
+            container_name: reverse-proxy
+            ports:
+              - "80:80"
+              - "443:443"
+            volumes:
+              - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+              - ./nginx/ssl:/etc/nginx/ssl
+            depends_on:
+              - frontend-app
+              - api-gateway
+              - payment-service
+            networks:
+              - app-network
+            restart: unless-stopped
+
+          # Frontend Application
+          frontend-app:
+            image: ${{ env.IMAGE_PREFIX }}/devsecops-frontend:latest
+            container_name: frontend-app
+            expose:
+              - "80"
+            networks:
+              - app-network
+            restart: unless-stopped
+
+          # API Gateway
+          api-gateway:
+            image: ${{ env.IMAGE_PREFIX }}/devsecops-api-gateway:latest
+            container_name: api-gateway
+            expose:
+              - "3000"
+            environment:
+              - NODE_ENV=production
+              - PORT=3000
+              - FRONTEND_URL=http://localhost
+              - DATABASE_URL=mongodb://database:27017/gateway
+              - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+            depends_on:
+              - database
+            networks:
+              - app-network
+            restart: unless-stopped
+            volumes:
+              - ./logs:/usr/src/app/logs
+
+          # Payment Service
+          payment-service:
+            image: ${{ env.IMAGE_PREFIX }}/devsecops-payment-service:latest
+            container_name: payment-service
+            expose:
+              - "4000"
+            environment:
+              - NODE_ENV=production
+              - PORT=4000
+              - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+              - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+              - DATABASE_URL=mongodb://database:27017/payments
+            depends_on:
+              - database
+            networks:
+              - app-network
+            restart: unless-stopped
+            volumes:
+              - ./logs:/usr/src/app/logs
+
+          # Admin Dashboard
+          admin-dashboard:
+            image: ${{ env.IMAGE_PREFIX }}/devsecops-admin-dashboard:latest
+            container_name: admin-dashboard
+            ports:
+              - "8080:3000"
+            environment:
+              - NODE_ENV=development
+              - PORT=3000
+              - ADMIN_SECRET=${ADMIN_SECRET}
+              - DATABASE_URL=mongodb://database:27017/admin
+            depends_on:
+              - database
+            networks:
+              - app-network
+            restart: unless-stopped
+            volumes:
+              - ./logs:/usr/src/app/logs
+              - ./admin-dashboard/uploads:/usr/src/app/uploads
+
+          # Database
+          database:
+            image: mongo:6-jammy
+            container_name: database
+            environment:
+              - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME}
+              - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+            volumes:
+              - mongodb_data:/data/db
+              - ./mongo-init:/docker-entrypoint-initdb.d
+            networks:
+              - app-network
+            restart: unless-stopped
+
+        networks:
+          app-network:
+            driver: bridge
+
+        volumes:
+          mongodb_data:
+            driver: local
+        EOF
+
+    - name: Upload production compose file
+      uses: actions/upload-artifact@v4
+      with:
+        name: docker-compose-prod
+        path: docker-compose.prod.yml
+        retention-days: 30
+
+  security-scan:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    strategy:
+      matrix:
+        service: [frontend, api-gateway, payment-service, admin-dashboard]
+    
+    steps:
+    - name: Generate image reference
+      id: image-ref
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          IMAGE_TAG="pr-${{ github.event.number }}"
+        else
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          IMAGE_TAG="commit-${SHORT_SHA}"
+        fi
+        IMAGE_REF="${{ env.IMAGE_PREFIX }}/devsecops-${{ matrix.service }}:${IMAGE_TAG}"
+        echo "image-ref=${IMAGE_REF}" >> $GITHUB_OUTPUT
+        echo "Scanning image: ${IMAGE_REF}"
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: '${{ steps.image-ref.outputs.image-ref }}'
+        format: 'sarif'
+        output: 'trivy-results-${{ matrix.service }}.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results-${{ matrix.service }}.sarif'
